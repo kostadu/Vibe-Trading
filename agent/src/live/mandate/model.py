@@ -88,12 +88,17 @@ class UniverseConstraint:
         exclude_symbols: Hard per-symbol denylist (normalized upper-case,
             e.g. ``BTC-USDT`` style for crypto). Takes precedence over every
             other universe rule.
+        allowed_symbols: Optional hard per-symbol allowlist (normalized
+            upper-case). Empty == unrestricted (backward-compatible). When
+            non-empty, any symbol not on the list is denied after the exclude
+            check.
     """
 
     asset_classes: tuple[AssetClass, ...]
     min_market_cap_usd: float | None
     min_avg_daily_volume_usd: float | None
     exclude_symbols: tuple[str, ...]
+    allowed_symbols: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)

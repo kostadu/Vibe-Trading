@@ -100,6 +100,8 @@ def _parse_mandate(raw: object) -> Mandate:
         min_market_cap_usd=_opt_float(universe["min_market_cap_usd"]),
         min_avg_daily_volume_usd=_opt_float(universe["min_avg_daily_volume_usd"]),
         exclude_symbols=tuple(str(value) for value in universe["exclude_symbols"]),
+        # Optional allowlist (absent on older mandate.json → unrestricted).
+        allowed_symbols=tuple(str(value) for value in universe.get("allowed_symbols") or ()),
     )
     consent_meta = ConsentMeta(
         created_at=str(consent["created_at"]),

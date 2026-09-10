@@ -510,6 +510,16 @@ def check_mandate(
             detail=f"{symbol} is on the mandate exclude list",
         )
 
+    # 1b. Optional allowlist — empty means unrestricted (backward-compatible).
+    allowed_symbols = {s.strip().upper() for s in universe.allowed_symbols if str(s).strip()}
+    if allowed_symbols and symbol not in allowed_symbols:
+        return _breach(
+            broker=broker, remote_tool=remote_tool, intent=intent,
+            kind=BREACH_KIND_UNIVERSE, limit="allowed_symbols",
+            limit_value=0.0, attempted_value=0.0,
+            detail=f"{symbol} is not on the mandate allowlist ({', '.join(sorted(allowed_symbols))})",
+        )
+
     # 2. Instrument-type allowance (empty == deny all, fail-closed).
     if intent.instrument_type not in caps.allowed_instruments:
         return _breach(

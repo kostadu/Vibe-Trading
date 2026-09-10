@@ -581,9 +581,16 @@ def _profile_to_universe(profile: Mapping[str, Any]) -> dict[str, Any]:
     Returns:
         A ``universe`` dict in the persisted mandate schema.
     """
+    # Proposal profiles often carry a human-facing ``universe`` symbol list
+    # (e.g. ["BTC-USDT", "ETH-USDT"]); persist it as the hard allowlist when
+    # ``allowed_symbols`` is not set explicitly.
+    allowed = profile.get("allowed_symbols")
+    if allowed is None:
+        allowed = profile.get("universe") if isinstance(profile.get("universe"), list) else []
     return {
         "asset_classes": list(profile.get("asset_classes") or ["us_equity"]),
         "min_market_cap_usd": profile.get("min_market_cap_usd"),
         "min_avg_daily_volume_usd": profile.get("min_avg_daily_volume_usd"),
         "exclude_symbols": list(profile.get("exclude_symbols") or []),
+        "allowed_symbols": [str(s).strip().upper() for s in (allowed or []) if str(s).strip()],
     }

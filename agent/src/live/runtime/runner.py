@@ -237,6 +237,7 @@ def _pin_mandate_prompt(broker: str, mandate: Mandate, now: datetime) -> str:
     instruments = ", ".join(i.value for i in caps.allowed_instruments) or "(none)"
     asset_classes = ", ".join(a.value for a in universe.asset_classes) or "(none)"
     excluded = ", ".join(universe.exclude_symbols) or "(none)"
+    allowed = ", ".join(universe.allowed_symbols) or "(unrestricted)"
     return (
         "You are running an AUTONOMOUS live-trading tick under a bounded "
         "mandate. Trade freely INSIDE the limits below; you must NEVER place an "
@@ -256,6 +257,7 @@ def _pin_mandate_prompt(broker: str, mandate: Mandate, now: datetime) -> str:
         f"- Asset classes: {asset_classes}\n"
         f"- Min market cap (USD): {universe.min_market_cap_usd}\n"
         f"- Min avg daily volume (USD): {universe.min_avg_daily_volume_usd}\n"
+        f"- Allowed symbols (hard allowlist): {allowed}\n"
         f"- Excluded symbols (hard denylist): {excluded}\n\n"
         "Assess the current opportunity set, then act within the mandate. If no "
         "action is warranted this tick, hold and explain why."
