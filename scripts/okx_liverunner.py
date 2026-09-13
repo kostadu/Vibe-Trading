@@ -46,8 +46,8 @@ logger = logging.getLogger("okx-liverunner")
 
 BROKER = "okx"
 PROFILE = "okx-live-trade"
-# 5-minute ticks — enough for crypto, bounds LLM spend after refill.
-TICK_INTERVAL_MS = 5 * 60 * 1000
+# 30-minute ticks — low-churn regime (less LLM noise / less overtrading).
+TICK_INTERVAL_MS = 30 * 60 * 1000
 # Back off when LLM/provider is down (e.g. 402 Insufficient Balance).
 LLM_BACKOFF_PATH = Path.home() / ".vibe-trading" / "live" / "okx" / "llm_backoff.json"
 LLM_BACKOFF_SEC = 30 * 60
@@ -193,22 +193,23 @@ def _submit(order: dict[str, Any]) -> dict[str, Any]:
 def _augment_prompt(base: str) -> str:
     return (
         base
-        + "\n\n=== OPERATIONAL RULES (OKX EEA) — FULL-CAPITAL MANDATE ===\n"
+        + "\n\n=== OPERATIONAL RULES (OKX EEA) — LOW-CHURN REGIME ===\n"
         "- Connector profile: okx-live-trade\n"
         "- Trade ONLY BTC-USDC and ETH-USDC (USDT pairs are compliance-blocked)\n"
-        "- Use trading_account / trading_positions / trading_quote / "
-        "trading_place_order / trading_cancel_order tools\n"
         "- Spot only, no leverage / no perps\n"
-        "- Bias: act when there is a clear edge; avoid pointless churn.\n"
-        "- Prefer adding on dips / breakouts / mean-reversion setups inside caps\n"
-        "- Size toward max_order when conviction is high; at most 1–2 fills/tick\n"
-        "- CRITICAL when USDC cash < ~$50 OR exposure is near the cap:\n"
-        "  you MUST evaluate a ROTATE this tick (sell weaker leg partially,\n"
-        "  optionally buy the stronger). Pure HOLD is only OK if both legs\n"
-        "  are still valid and relative strength is flat — say so explicitly.\n"
-        "- Trim on clear invalidation (structure break) or to free capital for\n"
-        "  a better setup — not on mild red tape\n"
+        "- Tool budget: ONE pass only — trading_account + trading_positions + "
+        "trading_orders + quotes for BTC-USDC and ETH-USDC (and history if needed). "
+        "Do NOT re-call the same read tools. Then decide and stop.\n"
+        "- DEFAULT IS HOLD. Trade only on a clear, tool-verified edge.\n"
+        "- Target ~30%+ USDC cash buffer; do NOT push exposure to 100% of equity\n"
+        "- Max 1 action per tick; prefer 0–1 trades/day unless invalidation\n"
+        "- Rotate BTC↔ETH only if relative strength gap ≥ ~2% over 24h "
+        "(tool-verified) AND the move pays for fees; otherwise HOLD\n"
+        "- Add only on clear dip/breakout with room under exposure cap\n"
+        "- Trim on structure break or to restore the cash buffer — not on mild red\n"
         "- Cancel stale unfilled limits that no longer match the thesis\n"
+        "- Never invent prices; if tools fail, HOLD and say so in plain text\n"
+        "- End with a short final answer: HOLD or the single order you placed\n"
         "- Respect remaining daily trade count and exposure headroom\n"
     )
 
@@ -290,6 +291,8 @@ async def _agent_caller(session_id: str, prompt: str) -> dict[str, Any]:
     env = os.environ.copy()
     env["NO_PROXY"] = "127.0.0.1,localhost,::1"
     env["no_proxy"] = env["NO_PROXY"]
+    # Slightly looser content-filter warning; hard rejects still apply.
+    env.setdefault("CONTENT_FILTER_WARNING_THRESHOLD", "0.08")
 
     logger.info("invoking autonomous tick session=%s", session_id)
     proc = await asyncio.create_subprocess_exec(
@@ -298,7 +301,7 @@ async def _agent_caller(session_id: str, prompt: str) -> dict[str, Any]:
         "-p",
         full_prompt,
         "--max-iter",
-        "10",
+        "14",
         "--no-rich",
         cwd=str(ROOT),
         env=env,
